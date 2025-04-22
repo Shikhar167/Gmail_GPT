@@ -1,4 +1,4 @@
-from flask import Flask, redirect, request, jsonify
+from flask import Flask, redirect, request
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
@@ -37,7 +37,7 @@ def authorize():
         return redirect(auth_url)
     except Exception as e:
         print("🔥 Exception in /authorize:", traceback.format_exc())
-        return jsonify({'error': str(e)}), 500
+        return _error_response(e)
 
 
 @app.route('/oauth2callback')
@@ -61,7 +61,7 @@ def oauth2callback():
         return redirect('/emails/latest')
     except Exception as e:
         print("🔥 Exception in /oauth2callback:", traceback.format_exc())
-        return jsonify({'error': str(e)}), 500
+        return _error_response(e)
 
 
 @app.route('/emails/latest')
@@ -73,7 +73,7 @@ def get_latest_emails():
         creds = Credentials(**saved_creds)
         service = build('gmail', 'v1', credentials=creds)
 
-        result = service.users().messages().list(userId='me', maxResults=10).execute()
+        result = service.users().messages().list(userId='me', maxResults=3).execute()
         messages = result.get('messages', [])
 
         emails = []
@@ -95,10 +95,10 @@ def get_latest_emails():
                 'subject': subject[:100]
             })
 
-        return jsonify(emails)
+        return _json_response(emails)
     except Exception as e:
         print("🔥 Exception in /emails/latest:", traceback.format_exc())
-        return jsonify({'error': str(e)}), 500
+        return _error_response(e)
 
 
 @app.route('/emails/detail')
@@ -109,7 +109,7 @@ def get_email_detail():
 
         email_id = request.args.get('id')
         if not email_id:
-            return jsonify({'error': 'Missing email ID'}), 400
+            return _error_response("Missing email ID", status=400)
 
         creds = Credentials(**saved_creds)
         service = build('gmail', 'v1', credentials=creds)
@@ -137,14 +137,14 @@ def get_email_detail():
         if not body and payload.get('body', {}).get('data'):
             body = base64.urlsafe_b64decode(payload['body']['data'] + '==').decode('utf-8')
 
-        return jsonify({
+        return _json_response({
             'from': sender[:100],
             'subject': subject[:100],
-            'body': body.strip().replace('\r\n', '\n')[:500]  # trim to 500 chars
+            'body': body.strip().replace('\r\n', '\n')[:500]
         })
     except Exception as e:
         print("🔥 Exception in /emails/detail:", traceback.format_exc())
-        return jsonify({'error': str(e)}), 500
+        return _error_response(e)
 
 
 @app.route('/emails/send', methods=['POST'])
@@ -167,10 +167,24 @@ def send_email():
         service = build('gmail', 'v1', credentials=creds)
         service.users().messages().send(userId='me', body={'raw': raw}).execute()
 
-        return jsonify({'status': 'Email sent!'})
+        return _json_response({'status': 'Email sent!'})
     except Exception as e:
         print("🔥 Exception in /emails/send:", traceback.format_exc())
-        return jsonify({'error': str(e)}), 500
+        return _error_response(e)
+
+
+# === Helper for compact JSON ===
+def _json_response(data, status=200):
+    return app.response_class(
+        response=json.dumps(data, separators=(',', ':')),
+        status=status,
+        mimetype='application/json'
+    )
+
+
+# === Helper for compact error response ===
+def _error_response(error, status=500):
+    return _json_response({'error': str(error)}, status=status)
 
 
 if __name__ == '__main__':
