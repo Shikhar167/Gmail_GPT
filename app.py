@@ -4,23 +4,26 @@ from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 import os
 import base64
+import traceback
 from email.mime.text import MIMEText
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key'  # For local dev; sessions not used in Vercel
+app.secret_key = 'your_secret_key'  # Used locally; not used in Vercel
 
-# === GLOBAL STORAGE FOR TESTING ONLY ===
+# === GLOBAL TEMPORARY CREDENTIAL STORE ===
 saved_creds = {}
 
 # === Load Google credentials from ENV ===
 CLIENT_SECRETS_FILE = "client_secrets_temp.json"
-if not os.path.exists(CLIENT_SECRETS_FILE):
-    with open(CLIENT_SECRETS_FILE, "w") as f:
-        f.write(os.environ['GOOGLE_CREDENTIALS'])
+if 'GOOGLE_CREDENTIALS' not in os.environ:
+    raise Exception("Missing GOOGLE_CREDENTIALS environment variable")
+
+with open(CLIENT_SECRETS_FILE, "w") as f:
+    f.write(os.environ['GOOGLE_CREDENTIALS'])
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send']
 
-# ✅ Make sure this is your actual Vercel app URL
+# ✅ YOUR VERCEL URL — update this if your subdomain changes
 REDIRECT_URI = 'https://gmail-gpt-phi.vercel.app/oauth2callback'
 
 
@@ -37,6 +40,7 @@ def authorize():
         auth_url, _ = flow.authorization_url(prompt='consent')
         return redirect(auth_url)
     except Exception as e:
+        print("🔥 Exception in /authorize:", traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 
@@ -60,6 +64,7 @@ def oauth2callback():
 
         return redirect('/emails/latest')
     except Exception as e:
+        print("🔥 Exception in /oauth2callback:", traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 
@@ -82,6 +87,7 @@ def get_latest_emails():
 
         return jsonify(emails)
     except Exception as e:
+        print("🔥 Exception in /emails/latest:", traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 
@@ -107,6 +113,7 @@ def send_email():
 
         return jsonify({'status': 'Email sent!'})
     except Exception as e:
+        print("🔥 Exception in /emails/send:", traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 
