@@ -86,21 +86,20 @@ def get_latest_emails():
             ).execute()
 
             headers = msg_data.get('payload', {}).get('headers', [])
-            subject = next((h['value'] for h in headers if h['name'] == 'Subject'), 'No Subject')
-            sender = next((h['value'] for h in headers if h['name'] == 'From'), 'Unknown Sender')
-            snippet = msg_data.get('snippet', '')[:200]
+            subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), 'No Subject')
+            sender = next((h['value'] for h in headers if h['name'].lower() == 'from'), 'Unknown')
 
             emails.append({
-                'id': msg['id'],
-                'from': sender,
-                'subject': subject,
-                'snippet': snippet
+                'subject': subject[:100],
+                'from': sender[:100],
+                'snippet': msg_data.get('snippet', '')[:150]  # trimmed snippet
             })
 
         return jsonify(emails)
     except Exception as e:
         print("🔥 Exception in /emails/latest:", traceback.format_exc())
         return jsonify({'error': str(e)}), 500
+
 
 
 @app.route('/emails/send', methods=['POST'])
