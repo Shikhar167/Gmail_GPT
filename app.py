@@ -14,7 +14,7 @@ if not os.path.exists(CLIENT_SECRETS_FILE):
     with open(CLIENT_SECRETS_FILE, "w") as f:
         f.write(os.environ['GOOGLE_CREDENTIALS'])
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send']
-REDIRECT_URI = 'https://gmail-gpt-e4fs.onrender.com'
+REDIRECT_URI = 'https://gmail-gpt.vercel.app/oauth2callback'
 
 
 @app.route('/')
