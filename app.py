@@ -72,7 +72,7 @@ def get_latest_emails():
         creds = Credentials(**saved_creds)
         service = build('gmail', 'v1', credentials=creds)
 
-        result = service.users().messages().list(userId='me', maxResults=5).execute()
+        result = service.users().messages().list(userId='me', maxResults=3).execute()
         messages = result.get('messages', [])
 
         emails = []
@@ -80,31 +80,18 @@ def get_latest_emails():
             msg_data = service.users().messages().get(
                 userId='me',
                 id=msg['id'],
-                format='full'
+                format='metadata',
+                metadataHeaders=['From', 'Subject']
             ).execute()
 
             headers = msg_data.get('payload', {}).get('headers', [])
             subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), 'No Subject')
             sender = next((h['value'] for h in headers if h['name'].lower() == 'from'), 'Unknown')
 
-            # Extract plain text body
-            body = ''
-            parts = msg_data.get('payload', {}).get('parts', [])
-            for part in parts:
-                if part.get('mimeType') == 'text/plain' and part['body'].get('data'):
-                    body_data = part['body']['data']
-                    body = base64.urlsafe_b64decode(body_data + '==').decode('utf-8')
-                    break
-
-            if not body and msg_data.get('payload', {}).get('body', {}).get('data'):
-                body_data = msg_data['payload']['body']['data']
-                body = base64.urlsafe_b64decode(body_data + '==').decode('utf-8')
-
             emails.append({
-                'subject': subject[:100],
+                'id': msg['id'],
                 'from': sender[:100],
-                'snippet': msg_data.get('snippet', '')[:150],
-                'body': body[:500]  # Limit body to 500 characters
+                'subject': subject[:100]
             })
 
         return jsonify(emails)
@@ -112,6 +99,47 @@ def get_latest_emails():
         print("🔥 Exception in /emails/latest:", traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
+@app.route('/emails/detail')
+def get_email_detail():
+    try:
+        if not saved_creds:
+            return redirect('/authorize')
+
+        email_id = request.args.get('id')
+        if not email_id:
+            return jsonify({'error': 'Missing email ID'}), 400
+
+        creds = Credentials(**saved_creds)
+        service = build('gmail', 'v1', credentials=creds)
+
+        msg_data = service.users().messages().get(
+            userId='me',
+            id=email_id,
+            format='full'
+        ).execute()
+
+        headers = msg_data.get('payload', {}).get('headers', [])
+        subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), 'No Subject')
+        sender = next((h['value'] for h in headers if h['name'].lower() == 'from'), 'Unknown')
+
+        body = ''
+        parts = msg_data.get('payload', {}).get('parts', [])
+        for part in parts:
+            if part.get('mimeType') == 'text/plain' and part['body'].get('data'):
+                body = base64.urlsafe_b64decode(part['body']['data'] + '==').decode('utf-8')
+                break
+
+        if not body and msg_data.get('payload', {}).get('body', {}).get('data'):
+            body = base64.urlsafe_b64decode(msg_data['payload']['body']['data'] + '==').decode('utf-8')
+
+        return jsonify({
+            'subject': subject[:100],
+            'from': sender[:100],
+            'body': body[:500]  # limit to 500 chars
+        })
+    except Exception as e:
+        print("🔥 Exception in /emails/detail:", traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/emails/send', methods=['POST'])
