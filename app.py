@@ -73,7 +73,7 @@ def get_latest_emails():
         creds = Credentials(**saved_creds)
         service = build('gmail', 'v1', credentials=creds)
 
-        result = service.users().messages().list(userId='me', maxResults=3).execute()
+        result = service.users().messages().list(userId='me', maxResults=1).execute()
         messages = result.get('messages', [])
 
         emails = []
