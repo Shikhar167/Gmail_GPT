@@ -12,10 +12,8 @@ import html
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
 
-# === Temporary in-memory credential store (1 user for testing) ===
 saved_creds = {}
 
-# === Load Gmail API credentials from env ===
 if 'GOOGLE_CREDENTIALS' not in os.environ:
     raise Exception("Missing GOOGLE_CREDENTIALS environment variable")
 
@@ -91,13 +89,12 @@ def get_latest_emails():
             sender_raw = next((h['value'] for h in headers if h['name'].lower() == 'from'), 'Unknown')
             sender = html.unescape(sender_raw)
 
-            # Normalize sender format to: Name - email@domain.com
             if '<' in sender and '>' in sender:
                 name, email = sender.split('<', 1)
                 email = email.replace('>', '').strip()
                 name = name.strip()
                 sender = f"{name} - {email}"
-            sender = sender[:100]  # Truncate just in case
+            sender = sender[:100]
 
             emails.append({
                 'id': msg['id'],
@@ -105,7 +102,7 @@ def get_latest_emails():
                 'subject': subject[:100]
             })
 
-        return _json_response(emails)
+        return _json_response({"emails": emails})
     except Exception as e:
         print("🔥 Exception in /emails/latest:", traceback.format_exc())
         return _error_response(e)
@@ -141,7 +138,6 @@ def get_email_detail():
             name = name.strip()
             sender = f"{name} - {email}"
 
-        # Extract plain text body
         body = ''
         payload = msg_data.get('payload', {})
         parts = payload.get('parts', [])
@@ -190,7 +186,6 @@ def send_email():
         return _error_response(e)
 
 
-# === Helper for compact JSON ===
 def _json_response(data, status=200):
     return app.response_class(
         response=json.dumps(data, separators=(',', ':')),
@@ -199,7 +194,6 @@ def _json_response(data, status=200):
     )
 
 
-# === Helper for compact error response ===
 def _error_response(error, status=500):
     return _json_response({'error': str(error)}, status=status)
 
