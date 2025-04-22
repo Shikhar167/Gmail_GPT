@@ -21,7 +21,7 @@ if not os.path.exists(CLIENT_SECRETS_FILE):
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send']
 
 # ✅ Make sure this is your actual Vercel app URL
-REDIRECT_URI = 'https://gmail-gpt.vercel.app/oauth2callback'
+REDIRECT_URI = 'https://gmail-gpt-phi.vercel.app/oauth2callback'
 
 
 @app.route('/')
