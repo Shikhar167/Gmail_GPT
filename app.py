@@ -7,6 +7,7 @@ import json
 import base64
 import traceback
 from email.mime.text import MIMEText
+import html
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
@@ -87,11 +88,20 @@ def get_latest_emails():
 
             headers = msg_data.get('payload', {}).get('headers', [])
             subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), 'No Subject')
-            sender = next((h['value'] for h in headers if h['name'].lower() == 'from'), 'Unknown')
+            sender_raw = next((h['value'] for h in headers if h['name'].lower() == 'from'), 'Unknown')
+            sender = html.unescape(sender_raw)
+
+            # Normalize sender format to: Name - email@domain.com
+            if '<' in sender and '>' in sender:
+                name, email = sender.split('<', 1)
+                email = email.replace('>', '').strip()
+                name = name.strip()
+                sender = f"{name} - {email}"
+            sender = sender[:100]  # Truncate just in case
 
             emails.append({
                 'id': msg['id'],
-                'from': sender[:100],
+                'from': sender,
                 'subject': subject[:100]
             })
 
@@ -122,7 +132,14 @@ def get_email_detail():
 
         headers = msg_data.get('payload', {}).get('headers', [])
         subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), 'No Subject')
-        sender = next((h['value'] for h in headers if h['name'].lower() == 'from'), 'Unknown')
+        sender_raw = next((h['value'] for h in headers if h['name'].lower() == 'from'), 'Unknown')
+        sender = html.unescape(sender_raw)
+
+        if '<' in sender and '>' in sender:
+            name, email = sender.split('<', 1)
+            email = email.replace('>', '').strip()
+            name = name.strip()
+            sender = f"{name} - {email}"
 
         # Extract plain text body
         body = ''
