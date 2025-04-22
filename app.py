@@ -3,28 +3,25 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 import os
+import json
 import base64
 import traceback
 from email.mime.text import MIMEText
+from io import StringIO
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key'  # Used locally; not used in Vercel
+app.secret_key = 'your_secret_key'  # Used locally
 
-# === GLOBAL TEMPORARY CREDENTIAL STORE ===
+# === GLOBAL TEMPORARY CREDENTIAL STORE (Testing Only) ===
 saved_creds = {}
 
-# === Load Google credentials from ENV ===
-CLIENT_SECRETS_FILE = "client_secrets_temp.json"
+# === Load Google credentials JSON directly from ENV ===
 if 'GOOGLE_CREDENTIALS' not in os.environ:
     raise Exception("Missing GOOGLE_CREDENTIALS environment variable")
 
-with open(CLIENT_SECRETS_FILE, "w") as f:
-    f.write(os.environ['GOOGLE_CREDENTIALS'])
-
+GOOGLE_CREDS_DICT = json.loads(os.environ['GOOGLE_CREDENTIALS'])
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send']
-
-# ✅ YOUR VERCEL URL — update this if your subdomain changes
-REDIRECT_URI = 'https://gmail-gpt-phi.vercel.app/oauth2callback'
+REDIRECT_URI = 'https://gmail-gpt-phi.vercel.app/oauth2callback'  # Your actual Vercel URL
 
 
 @app.route('/')
@@ -35,7 +32,7 @@ def index():
 @app.route('/authorize')
 def authorize():
     try:
-        flow = Flow.from_client_secrets_file(CLIENT_SECRETS_FILE, scopes=SCOPES)
+        flow = Flow.from_client_config(GOOGLE_CREDS_DICT, scopes=SCOPES)
         flow.redirect_uri = REDIRECT_URI
         auth_url, _ = flow.authorization_url(prompt='consent')
         return redirect(auth_url)
@@ -47,7 +44,7 @@ def authorize():
 @app.route('/oauth2callback')
 def oauth2callback():
     try:
-        flow = Flow.from_client_secrets_file(CLIENT_SECRETS_FILE, scopes=SCOPES)
+        flow = Flow.from_client_config(GOOGLE_CREDS_DICT, scopes=SCOPES)
         flow.redirect_uri = REDIRECT_URI
         flow.fetch_token(authorization_response=request.url)
 
