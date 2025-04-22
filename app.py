@@ -63,7 +63,6 @@ def oauth2callback():
         print("🔥 Exception in /oauth2callback:", traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
-
 @app.route('/emails/latest')
 def get_latest_emails():
     try:
@@ -81,18 +80,31 @@ def get_latest_emails():
             msg_data = service.users().messages().get(
                 userId='me',
                 id=msg['id'],
-                format='metadata',
-                metadataHeaders=['From', 'Subject']
+                format='full'
             ).execute()
 
             headers = msg_data.get('payload', {}).get('headers', [])
             subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), 'No Subject')
             sender = next((h['value'] for h in headers if h['name'].lower() == 'from'), 'Unknown')
 
+            # Extract plain text body
+            body = ''
+            parts = msg_data.get('payload', {}).get('parts', [])
+            for part in parts:
+                if part.get('mimeType') == 'text/plain' and part['body'].get('data'):
+                    body_data = part['body']['data']
+                    body = base64.urlsafe_b64decode(body_data + '==').decode('utf-8')
+                    break
+
+            if not body and msg_data.get('payload', {}).get('body', {}).get('data'):
+                body_data = msg_data['payload']['body']['data']
+                body = base64.urlsafe_b64decode(body_data + '==').decode('utf-8')
+
             emails.append({
                 'subject': subject[:100],
                 'from': sender[:100],
-                'snippet': msg_data.get('snippet', '')[:150]  # trimmed snippet
+                'snippet': msg_data.get('snippet', '')[:150],
+                'body': body[:500]  # Limit body to 500 characters
             })
 
         return jsonify(emails)
