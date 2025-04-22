@@ -73,34 +73,28 @@ def get_latest_emails():
         creds = Credentials(**saved_creds)
         service = build('gmail', 'v1', credentials=creds)
 
-        result = service.users().messages().list(userId='me', maxResults=1).execute()
+        result = service.users().messages().list(userId='me', maxResults=3).execute()
         messages = result.get('messages', [])
 
         emails = []
         for msg in messages:
-            msg_data = service.users().messages().get(userId='me', id=msg['id'], format='full').execute()
-            payload = msg_data.get('payload', {})
-            headers = payload.get('headers', [])
+            msg_data = service.users().messages().get(
+                userId='me',
+                id=msg['id'],
+                format='metadata',
+                metadataHeaders=['From', 'Subject']
+            ).execute()
 
-            # Extract subject
-            subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), 'No Subject')
-
-            # Extract plain text body (limit length)
-            body = ''
-            parts = payload.get('parts', [])
-            for part in parts:
-                if part.get('mimeType') == 'text/plain':
-                    body_data = part['body'].get('data', '')
-                    body = base64.urlsafe_b64decode(body_data + '==').decode('utf-8')
-                    break
-
-            if not body and 'body' in payload and payload['body'].get('data'):
-                body_data = payload['body']['data']
-                body = base64.urlsafe_b64decode(body_data + '==').decode('utf-8')
+            headers = msg_data.get('payload', {}).get('headers', [])
+            subject = next((h['value'] for h in headers if h['name'] == 'Subject'), 'No Subject')
+            sender = next((h['value'] for h in headers if h['name'] == 'From'), 'Unknown Sender')
+            snippet = msg_data.get('snippet', '')[:200]
 
             emails.append({
+                'id': msg['id'],
+                'from': sender,
                 'subject': subject,
-                'body': body[:1000]  # truncate to avoid GPT size limits
+                'snippet': snippet
             })
 
         return jsonify(emails)
