@@ -9,18 +9,18 @@ import traceback
 from email.mime.text import MIMEText
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key'  # For local dev
+app.secret_key = 'your_secret_key'
 
-# === Temporary in-memory store for auth credentials ===
+# === Temporary in-memory credential store (1 user for testing) ===
 saved_creds = {}
 
-# === Load Google credentials from ENV ===
+# === Load Gmail API credentials from env ===
 if 'GOOGLE_CREDENTIALS' not in os.environ:
     raise Exception("Missing GOOGLE_CREDENTIALS environment variable")
 
 GOOGLE_CREDS_DICT = json.loads(os.environ['GOOGLE_CREDENTIALS'])
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send']
-REDIRECT_URI = 'https://gmail-gpt-phi.vercel.app/oauth2callback'  # ✅ Replace if your domain changes
+REDIRECT_URI = 'https://gmail-gpt-phi.vercel.app/oauth2callback'
 
 
 @app.route('/')
@@ -63,6 +63,7 @@ def oauth2callback():
         print("🔥 Exception in /oauth2callback:", traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/emails/latest')
 def get_latest_emails():
     try:
@@ -72,7 +73,7 @@ def get_latest_emails():
         creds = Credentials(**saved_creds)
         service = build('gmail', 'v1', credentials=creds)
 
-        result = service.users().messages().list(userId='me', maxResults=3).execute()
+        result = service.users().messages().list(userId='me', maxResults=10).execute()
         messages = result.get('messages', [])
 
         emails = []
@@ -99,6 +100,7 @@ def get_latest_emails():
         print("🔥 Exception in /emails/latest:", traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/emails/detail')
 def get_email_detail():
     try:
@@ -122,20 +124,23 @@ def get_email_detail():
         subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), 'No Subject')
         sender = next((h['value'] for h in headers if h['name'].lower() == 'from'), 'Unknown')
 
+        # Extract plain text body
         body = ''
-        parts = msg_data.get('payload', {}).get('parts', [])
+        payload = msg_data.get('payload', {})
+        parts = payload.get('parts', [])
+
         for part in parts:
             if part.get('mimeType') == 'text/plain' and part['body'].get('data'):
                 body = base64.urlsafe_b64decode(part['body']['data'] + '==').decode('utf-8')
                 break
 
-        if not body and msg_data.get('payload', {}).get('body', {}).get('data'):
-            body = base64.urlsafe_b64decode(msg_data['payload']['body']['data'] + '==').decode('utf-8')
+        if not body and payload.get('body', {}).get('data'):
+            body = base64.urlsafe_b64decode(payload['body']['data'] + '==').decode('utf-8')
 
         return jsonify({
-            'subject': subject[:100],
             'from': sender[:100],
-            'body': body[:500]  # limit to 500 chars
+            'subject': subject[:100],
+            'body': body.strip().replace('\r\n', '\n')[:500]  # trim to 500 chars
         })
     except Exception as e:
         print("🔥 Exception in /emails/detail:", traceback.format_exc())
